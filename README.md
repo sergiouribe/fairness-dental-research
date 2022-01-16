@@ -6,7 +6,7 @@
 
 **Objectives**: To assess the percentage of dental research that publishes its original data and what percentage of available dental research data complies with the FAIR principles.
 
-**Study Design**: Bibliometric descriptive study
+**Study Design**: Descriptive study
 
 **Data and methods**: From all Europe PubMed Central open access (PMCOA) articles and a random sample of 500 non-PMCOA articles published in PubMed-indexed dental journals in the last five years will be searched for data sharing using the rtransparent and oddpub packages in R. Data sharing in articles will be mapped by journal, keywords and year. Then, data shared via the repositories will be analyzed to verify compliance with FAIR principles using the FAIRsFAIR Data Object Assessment Metrics(Devaraju et al., 2020).
 
