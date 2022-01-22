@@ -1,0 +1,27 @@
+---
+title: "Data Analysis FAIRness of Dental Research Data"
+output: html_notebook
+---
+
+# Packages
+
+```{r}
+# if not installed, install 
+# install.packages("pacman")
+# library(pacman)
+
+pacman::p_load(tidyverse, # for data wrangling and visualizations 
+               janitor, # for data cleaning and tables
+               gtsummary # for tables
+               )
+```
+
+# Datasets
+
+```{r}
+open_data_all <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_yrHOCcgEu2_VHvxgvQnJaXc1McdyoiCyzUqNNDfBc_9TBHtRNtl6LbM3yQEd8IGElVjqA_llGEto/pub?gid=537877323&single=true&output=csv")
+```
+
+```{r}
+head(open_data_all)
+```
