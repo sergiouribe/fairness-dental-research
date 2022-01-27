@@ -30,9 +30,19 @@ pacman::p_load(tidyverse, # for data wrangling and visualizations
                janitor,   # for data cleaning and tables
                here,      # for files handling
                gtsummary, # for tables
+               visdat,    # for the NAs
+               DataExplorer, # for EDA
+               labelled,  # change labels
+               vcd,       # for kappa calculation
+               caret,     # for classification calculation
                dataMaid   # for the codebook
                )
 ```
+
+```{r}
+theme_set(theme_minimal())
+```
+
 
 # Datasets
 
@@ -45,7 +55,7 @@ open_data_all <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_yr
 Select some columns for the analysis
 
 ```{r}
-open_data_all <- open_data_all %>%
+df <- open_data_all %>%
   select(
     doi_publication,
     title,
@@ -66,24 +76,179 @@ open_data_all <- open_data_all %>%
 
 add index number 
 ```{r}
-open_data_all <- open_data_all %>% 
+df <- df %>% 
   rowid_to_column("id")
 ```
 
 
 ```{r}
-names(open_data_all)
+names(df)
+```
+```{r}
+glimpse(df)
+```
+Replace all the TRUE and FALSE for YES/NO
+
+```{r}
+# convert all logical to chr
+
+df <- df %>%
+  mutate_if(is.logical, as.character) 
+  
+```
+
+
+Remove the open_data_all
+```{r}
+rm(open_data_all)
+```
+
+
+```{r}
+visdat::vis_dat(df)
+```
+
+
+```{r}
+summary(df)
+```
+```{r}
+df %>% 
+  filter(is_open_data == "TRUE") %>% 
+  glimpse()
+```
+## Labelling variables
+
+
+                      
+```{r}
+labelled::var_label(df$id) <- "ID of the publication"
+labelled::var_label(df$title) <- "Publication title"
+labelled::var_label(df$journalTitle) <- "Journal"
+labelled::var_label(df$pubYear) <- "Pub Year"
+labelled::var_label(df$pubType) <- "Pub Type"
+labelled::var_label(df$isOpenAccess) <- "Open access pub"
+labelled::var_label(df$citedByCount) <- "Citations"
+labelled::var_label(df$is_open_data) <- "Open data"
+labelled::var_label(df$open_data_category) <- "Open data cat"
+labelled::var_label(df$is_open_code) <- "Open code"
+labelled::var_label(df$true_open_data) <- "Open data*"
+labelled::var_label(df$study_type) <- "Study type"
+labelled::var_label(df$dataset_type) <- "Dataset type"
+labelled::var_label(df$FAIR_level) <- "FAIR Level"
+labelled::var_label(df$FAIRness) <- "FAIR Score"
+labelled::var_label(df$Findability) <- "Findability"
+labelled::var_label(df$Accesibility) <- "Accesibility"
+labelled::var_label(df$Interoperability) <- "Interoperability"
+labelled::var_label(df$Reusability) <- "Reusability"
+labelled::var_label(df$Findability_level) <- "Findability Level"
+labelled::var_label(df$Accesibility_level) <- "Accesibility Level"
+labelled::var_label(df$Interoperability_level) <- "Interoperability Level"
+labelled::var_label(df$Reusability_level) <- "Reusability Level"
+
+## FAIR Items
+
+labelled::var_label(df$'FsF_F1_01D') <- "F1-01D - Data is assigned a globally unique identifier"
+labelled::var_label(df$'FsF_F1_02D') <- "F1-02D - Data is assigned a persistent identifier"
+labelled::var_label(df$'FsF_F2_01M') <- "F2-01M - Metadata includes descriptive core elements (creator title data identifier publisher summary and keywords) to support data findability"
+labelled::var_label(df$'FsF_F3_01M') <- "F3-01M - Metadata includes the identifier of the data it describes"
+labelled::var_label(df$'FsF_F4_01M') <- "F4-01M - Metadata is offered in such a way that it can be retrieved"
+labelled::var_label(df$'FsF_A1_01M') <- "A1-01M - Metadata contains access level and access conditions of the data"
+labelled::var_label(df$'FsF_A1_03D') <- "A1-03D - Data is accessible through a standardized communication protocol"
+labelled::var_label(df$'FsF_A1_02M') <- "A1-02M - Metadata is accessible through a standardized communication protocol"
+labelled::var_label(df$'FsF_I1_01M') <- "I1-01M - Metadata is represented using a formal knowledge representation language"
+labelled::var_label(df$'FsF_I1_02M') <- "I1-02M - Metadata uses semantic resources"
+labelled::var_label(df$'FsF_I3_01M') <- "I3-01M - Metadata includes links between the data and its related entities"
+labelled::var_label(df$'FsF_R1_01MD') <- "R1-01MD - Metadata specifies the content of the data"
+labelled::var_label(df$'FsF_R1.1_01M') <- "R1.1-01M - Metadata includes license information under which data can be reused"
+labelled::var_label(df$'FsF_R1.2_01M') <- "R1.2-01M - Metadata includes provenance information about data creation or generation"
+labelled::var_label(df$'FsF_R1.3_01M') <- "R1.3-01M - Metadata follows a standard recommended by the target research community of the data"
+labelled::var_label(df$'FsF_R1.3_02D') <- "R1.3-02D - Data is available in a file format recommended by the target research community"
+```
+
+
+## Recode variables
+
+```{r}
+df <- df %>% 
+  relocate(is_open_data, .after = open_data_category)
+
 ```
 
 ```{r}
-summary(open_data_all)
+df <- df %>% 
+  # reshape for easy handling
+  pivot_longer(cols = is_open_data:true_open_data, 
+               names_to = "openess", 
+               values_to = "openess_values") %>% 
+  # select(openess, openess_values) %>%  # just for test
+  # change the values
+  mutate(openess_values = case_when(
+    openess_values == "TRUE" ~ "Yes", 
+    TRUE ~ "No"
+  )) %>% 
+  # reshape to the original form
+  pivot_wider(names_from = openess, 
+              values_from = openess_values)
 ```
+
+Change open access values
+
+```{r}
+df <- df %>% 
+  mutate(isOpenAccess = case_when(
+    isOpenAccess == "Y" ~ "Yes", 
+    TRUE ~ "No"
+  ))
+```
+
 
 
 # EDA
 ## all data
 
+### All articles
+```{r}
+df %>%
+  mutate(journalTitle = fct_lump(journalTitle, n = 29, other_level = "Other")) %>%
+  group_by(journalTitle, true_open_data) %>%
+  
+  count(sort = T) %>%
+  pivot_wider(names_from = true_open_data,
+              values_from = n)
+  
+```
+
+### Articles with data
+
+```{r}
+df %>%
+  filter(true_open_data == "Yes") %>% 
+  mutate(journalTitle = fct_lump(journalTitle, n = 29, other_level = "Other")) %>%
+  group_by(journalTitle) %>%
+  
+  count(sort = T) 
+```
+
+
 ### General
+
+Subset some columns
+
+```{r}
+df %>% 
+  select(-c(id, 
+            doi_publication, 
+            title, 
+            pubType,
+            study_type, 
+            dataset_type, 
+            open_data_category, 
+            FAIR_level:FsF_R1.3_02D
+            )) %>% 
+  gtsummary::tbl_summary(by = isOpenAccess)
+```
+
 
 ```{r}
 open_data_all %>% 
@@ -95,10 +260,90 @@ open_data_all %>%
             dataset_type, 
             FAIR_level:FsF_R1.3_01M
             )) %>% 
-  gtsummary::tbl_summary(by = true_open_data)
+  DataExplorer::plot_intro()
+```
+Chek if all the papers with FAIRness level has all the data
+```{r}
+open_data_all %>% 
+  filter(!is.na(FAIRness)) %>% 
+  plot_missing()
+```
+Check the discrete variables
+```{r}
+open_data_all %>% 
+  select(journalTitle:FAIR_level) %>% 
+  DataExplorer::plot_bar()
 ```
 
 
+
+## How many papers do we have?
+```{r}
+n_distinct(open_data_all$title)
+```
+
+
+## How many are open access and how many are not?
+
+
+
+
+```{r}
+open_data_all %>% 
+  janitor::tabyl(isOpenAccess) %>% 
+  janitor::adorn_pct_formatting()
+```
+
+
+## How many of each have open data?
+
+```{r}
+open_data_all %>% 
+  janitor::tabyl(is_open_data) %>% 
+  janitor::adorn_pct_formatting()
+```
+but how many of them are really open data? rstransparent accuracy estimation
+
+
+
+```{r}
+rstransparent_accuracy <- table(open_data_all$is_open_data, 
+      open_data_all$true_open_data)
+```
+
+table for the rtransparent estimation
+```{r}
+table(open_data_all$is_open_data)
+```
+
+table for the manual checking
+```{r}
+table(open_data_all$true_open_data)
+```
+
+
+```{r}
+rstransparent_accuracy
+```
+
+
+```{r}
+vcd::Kappa(rstransparent_accuracy)
+```
+```{r}
+confusionMatrix(open_data_all$is_open_data,  # the predicted by the rtransparent package
+                open_data_all$true_open_data # the actual value
+                )
+```
+
+
+# FAIRness
+
+```{r}
+open_data_all %>% 
+  ggplot(aes(x = FAIRness)) +
+  geom_histogram(bins = 10)
+```
 
 ## With FAIRness assessment
 ```{r}
