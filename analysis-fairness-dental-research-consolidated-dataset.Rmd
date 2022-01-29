@@ -43,11 +43,20 @@ pacman::p_load(tidyverse, # for data wrangling and visualizations
 theme_set(theme_minimal())
 ```
 
+```{r}
+here::here()
+```
+
 
 # Datasets
 
 ```{r}
 open_data_all <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_yrHOCcgEu2_VHvxgvQnJaXc1McdyoiCyzUqNNDfBc_9TBHtRNtl6LbM3yQEd8IGElVjqA_llGEto/pub?gid=537877323&single=true&output=csv")
+```
+Store local raw copy
+
+```{r}
+write.csv(df,here("fairness_dental_research_raw_data,csv"))
 ```
 
 
@@ -203,6 +212,19 @@ df <- df %>%
 ```
 
 
+Relevel variables
+
+```{r}
+df <- df %>% 
+  pivot_longer(ends_with("_level"), 
+               names_to = "var_level", 
+               values_to = "var_values") %>% 
+  mutate(var_values = fct_relevel(var_values, "incomplete", "initial", "moderate", "advanced")) %>% 
+  pivot_wider(names_from = var_level, 
+              values_from = var_values)
+```
+
+
 
 # EDA
 ## all data
@@ -224,11 +246,14 @@ df %>%
 ```{r}
 df %>%
   filter(true_open_data == "Yes") %>% 
-  mutate(journalTitle = fct_lump(journalTitle, n = 29, other_level = "Other")) %>%
+  # Use negative values to collapse the most common
+  # the 25%
+  mutate(journalTitle = fct_lump(journalTitle, other_level = "Other", prop = .025)) %>%
   group_by(journalTitle) %>%
   
   count(sort = T) 
 ```
+
 
 
 ### General
@@ -251,7 +276,7 @@ df %>%
 
 
 ```{r}
-open_data_all %>% 
+df %>% 
   select(-c(id, 
             doi_publication, 
             title, 
@@ -264,90 +289,141 @@ open_data_all %>%
 ```
 Chek if all the papers with FAIRness level has all the data
 ```{r}
-open_data_all %>% 
+df %>% 
   filter(!is.na(FAIRness)) %>% 
   plot_missing()
 ```
 Check the discrete variables
 ```{r}
-open_data_all %>% 
+df %>% 
   select(journalTitle:FAIR_level) %>% 
+   select(-c(pubType, open_data_category)) %>%  
+  DataExplorer::plot_bar()
+```
+
+For the open data papers
+
+```{r}
+df %>% 
+  filter(true_open_data == "Yes") %>% 
+  select(journalTitle:FAIR_level) %>% 
+  select(-c(pubType, open_data_category)) %>% 
   DataExplorer::plot_bar()
 ```
 
 
-
 ## How many papers do we have?
 ```{r}
-n_distinct(open_data_all$title)
+n_distinct(df$title)
 ```
 
 
 ## How many are open access and how many are not?
 
-
-
-
+Total papers
 ```{r}
-open_data_all %>% 
+dim(df)
+```
+
+## By open access status
+```{r}
+df %>% 
   janitor::tabyl(isOpenAccess) %>% 
-  janitor::adorn_pct_formatting()
+  janitor::adorn_pct_formatting() %>% 
+  adorn_totals(where = "row")
 ```
-
-
-## How many of each have open data?
+## How many have open data according to the package?
 
 ```{r}
-open_data_all %>% 
-  janitor::tabyl(is_open_data) %>% 
-  janitor::adorn_pct_formatting()
+df %>% 
+  tabyl(isOpenAccess) %>%  
+  janitor::adorn_pct_formatting() %>% 
+  adorn_totals(where = "row") 
+  
 ```
-but how many of them are really open data? rstransparent accuracy estimation
-
-
+## Cross tabulation open access vs open data 
 
 ```{r}
-rstransparent_accuracy <- table(open_data_all$is_open_data, 
-      open_data_all$true_open_data)
-```
-
-table for the rtransparent estimation
-```{r}
-table(open_data_all$is_open_data)
-```
-
-table for the manual checking
-```{r}
-table(open_data_all$true_open_data)
-```
-
-
-```{r}
-rstransparent_accuracy
-```
-
-
-```{r}
-vcd::Kappa(rstransparent_accuracy)
+df %>% 
+  filter(isOpenAccess == "Yes") %>% 
+  tabyl(isOpenAccess, is_open_data) %>%  
+  adorn_totals(where = c("row", "col")) 
 ```
 ```{r}
-confusionMatrix(open_data_all$is_open_data,  # the predicted by the rtransparent package
-                open_data_all$true_open_data # the actual value
-                )
+df %>% 
+  filter(isOpenAccess == "No") %>% 
+  tabyl(isOpenAccess, is_open_data) %>%  
+  adorn_totals(where = c("row", "col")) 
 ```
+
+## Open data vs true open data in open access
+
+```{r}
+df %>% 
+  filter(isOpenAccess == "Yes") %>% 
+  tabyl(true_open_data, is_open_data)
+```
+Check with https://www.medcalc.org/calc/diagnostic_test.php
+
+## Hoy many journals?
+
+```{r}
+df %>%
+  group_by(isOpenAccess) %>%
+  summarise(count = n_distinct(journalTitle))
+
+```
+
+
+## how many journal open access y non open access
+
+```{r}
+df %>% 
+  select(journalTitle, isOpenAccess) %>% 
+  gtsummary::tbl_summary(by = isOpenAccess, 
+                         sort = all_categorical() ~ "frequency")
+  
+```
+## Table 2  Availability of open data by journal and year
+```{r}
+df %>% 
+  mutate(Journal = fct_lump_prop(journalTitle, p = .01)) %>% 
+  select(Journal, true_open_data, pubYear) %>% 
+  gtsummary::tbl_summary(by = true_open_data, 
+                         sort = all_categorical() ~ "frequency")
+```
+
 
 
 # FAIRness
 
 ```{r}
-open_data_all %>% 
+summary(df$FAIRness)
+```
+```{r}
+df %>% 
+  tabyl(FAIRness, isOpenAccess) %>% 
+  adorn_totals(where = "col")
+  group_by(FAIRness, isOpenAccess) %>% 
+  count() %>% 
+  # summarise(n = n(), mean = mean(FAIRness)) %>% 
+  pivot_wider(names_from = isOpenAccess, 
+              values_from = n)
+  
+  
+```
+
+
+```{r}
+df %>% 
+  filter(true_open_data == "Yes") %>% 
   ggplot(aes(x = FAIRness)) +
   geom_histogram(bins = 10)
 ```
 
 ## With FAIRness assessment
 ```{r}
-open_data_all %>% 
+df %>% 
   filter(is.na(FAIRness)) %>%  # filter all data with FAIRness evaluation TRUE
   group_by(journalTitle, pubYear) %>% 
   summarise(FAIRness_mean = mean(FAIRness, na.rm = T)) %>% 
