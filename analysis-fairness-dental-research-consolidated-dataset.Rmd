@@ -533,7 +533,23 @@ df %>%
   filter(true_open_data == "Yes") %>% 
   filter(!is.na(FAIRness)) %>% 
   mutate(Journal = fct_lump(journalTitle, n = 6)) %>%
-  select(Journal, pubYear, )
+  select(Journal, pubYear, Findability:Reusability ) %>% 
+  
+  pivot_longer(Findability:Reusability, 
+               names_to = "FAIR_item", 
+               values_to = "FAIR_values") %>% 
+  mutate(FAIR_item = fct_relevel(FAIR_item, "Findability", 
+                                 "Accesibility", 
+                                 "Interoperability",
+                                 "Reusability")) %>% 
+  
+  ggplot(aes(x = FAIR_item, 
+             y = FAIR_values)) + 
+  geom_boxplot(width = .5, color = "dodgerblue") +
+  geom_jitter(alpha = .1, color = "Grey 20") +
+  labs(title = "FAIR level by domain", 
+       x = "Domain", 
+       y = "FAIR value")
   
 ```
 
