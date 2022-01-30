@@ -12,10 +12,18 @@ output:
   pdf_document:
     toc: yes
 ---
+
 # General options
 ```{r global_options, include=FALSE}
-knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
-                      echo=FALSE, warning=FALSE, message=FALSE, out.width="75%")
+knitr::opts_chunk$set(
+  fig.width = 12,
+  fig.height = 8,
+  fig.path = 'Figs/',
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  out.width = "75%"
+)
 # Use include=TRUE for the chunks to be displayed
 ```
 
@@ -30,8 +38,10 @@ pacman::p_load(tidyverse, # for data wrangling and visualizations
                janitor,   # for data cleaning and tables
                here,      # for files handling
                gtsummary, # for tables
+               ggeasy,    # using attr labels in ggplot
                visdat,    # for the NAs
                DataExplorer, # for EDA
+               scales,    # for ggplot2 scales
                labelled,  # change labels
                dataMaid   # for the codebook
                )
@@ -51,11 +61,7 @@ here::here()
 ```{r}
 open_data_all <- read_csv("https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_yrHOCcgEu2_VHvxgvQnJaXc1McdyoiCyzUqNNDfBc_9TBHtRNtl6LbM3yQEd8IGElVjqA_llGEto/pub?gid=537877323&single=true&output=csv")
 ```
-Store local raw copy
 
-```{r}
-write.csv(df,here("fairness_dental_research_raw_data,csv"))
-```
 
 
 
@@ -81,6 +87,18 @@ df <- open_data_all %>%
   )
 ```
 
+
+Remove the open_data_all
+```{r}
+rm(open_data_all)
+```
+
+Store local raw copy
+
+```{r}
+write.csv(df,here("fairness_dental_research_raw_data,csv"))
+```
+
 add index number 
 ```{r}
 df <- df %>% 
@@ -91,9 +109,8 @@ df <- df %>%
 ```{r}
 names(df)
 ```
-```{r}
-glimpse(df)
-```
+## Recoding, relabelling, relevelling and cleaning
+
 Replace all the TRUE and FALSE for YES/NO
 
 ```{r}
@@ -105,17 +122,6 @@ df <- df %>%
 ```
 
 
-Remove the open_data_all
-```{r}
-rm(open_data_all)
-```
-
-## Summary
-
-
-```{r}
-summary(df)
-```
 
 ## Labelling variables
 
@@ -216,6 +222,36 @@ df <- df %>%
 
 
 # EDA
+
+
+
+Check the discrete variables
+```{r}
+df %>% 
+  select(journalTitle:FAIR_level) %>% 
+   select(-c(pubType, open_data_category)) %>%  
+  DataExplorer::plot_bar()
+```
+
+For the open data papers
+
+```{r}
+df %>% 
+  filter(true_open_data == "Yes") %>% 
+  select(journalTitle:FAIR_level) %>% 
+  select(-c(pubType, open_data_category)) %>% 
+  DataExplorer::plot_bar()
+```
+
+
+
+
+```{r}
+summary(df)
+```
+
+
+
 ## all data
 
 ### All articles
@@ -242,6 +278,7 @@ df %>%
 ```{r}
 df %>%
   filter(true_open_data == "Yes") %>% 
+  
   # Use negative values to collapse the most common
   # the 25%
   mutate(journalTitle = fct_lump(journalTitle, other_level = "Other", prop = .025)) %>%
@@ -252,72 +289,8 @@ df %>%
 
 
 
-## General
+# General
 
-### Table 1
-
-Subset some columns
-
-```{r}
-df %>% 
-  select(-c(id, 
-            doi_publication, 
-            title, 
-            pubType,
-            study_type, 
-            dataset_type, 
-            open_data_category, 
-            FAIR_level:FsF_R1.3_02D
-            )) %>% 
-  gtsummary::tbl_summary(by = isOpenAccess)
-```
-
-## Table 2
-
-```{r}
-df %>%
-  select(journalTitle, true_open_data) %>% 
-  gtsummary::tbl_summary(by = true_open_data, 
-                         sort = all_categorical() ~ "frequency")
-  
-```
-
-
-Check the journals without open data
-
-```{r}
-df %>% 
-  filter(true_open_data != "Yes") %>% 
-  select(journalTitle, true_open_data) %>% 
-  gtsummary::tbl_summary(by = true_open_data, 
-                         sort = all_categorical() ~ "frequency")
-```
-
-
-
-Chek if all the papers with FAIRness level has all the data
-```{r}
-df %>% 
-  filter(!is.na(FAIRness)) %>% 
-  plot_missing()
-```
-Check the discrete variables
-```{r}
-df %>% 
-  select(journalTitle:FAIR_level) %>% 
-   select(-c(pubType, open_data_category)) %>%  
-  DataExplorer::plot_bar()
-```
-
-For the open data papers
-
-```{r}
-df %>% 
-  filter(true_open_data == "Yes") %>% 
-  select(journalTitle:FAIR_level) %>% 
-  select(-c(pubType, open_data_category)) %>% 
-  DataExplorer::plot_bar()
-```
 
 
 ## How many papers do we have?
@@ -351,12 +324,7 @@ df %>%
 ```
 ## Cross tabulation open access vs open data 
 
-```{r}
-df %>% 
-  filter(isOpenAccess == "Yes") %>% 
-  tabyl(isOpenAccess, is_open_data) %>%  
-  adorn_totals(where = c("row", "col")) 
-```
+
 ```{r}
 df %>% 
   filter(isOpenAccess == "No") %>% 
@@ -383,6 +351,7 @@ df %>%
 ```
 
 
+
 ## how many journal open access y non open access
 
 ```{r}
@@ -392,43 +361,125 @@ df %>%
                          sort = all_categorical() ~ "frequency")
   
 ```
-## Table 2  Availability of open data by journal and year
+
+## Tables
+
+### Table 1
+
 ```{r}
 df %>% 
-  mutate(Journal = fct_lump_prop(journalTitle, p = .01)) %>% 
-  select(Journal, true_open_data, pubYear) %>% 
+  filter(!is.na(is_open_data)) %>% 
+  mutate(journalTitle = fct_lump_prop(journalTitle, p = .01)) %>% 
+  select(journalTitle, pubYear, isOpenAccess, true_open_data) %>% 
+  gtsummary::tbl_summary(by = isOpenAccess, 
+                         sort = all_categorical() ~ "frequency" ) %>% 
+  gtsummary::add_overall() %>% 
+  gtsummary::bold_labels() 
+```
+
+
+
+
+### Table 2
+
+```{r}
+df %>%
+  mutate(journalTitle = fct_lump_prop(journalTitle, p = 0.008)) %>% 
+  select(journalTitle, pubYear, true_open_data) %>% 
+  gtsummary::tbl_summary(by = true_open_data, 
+                         sort = all_categorical() ~ "frequency")
+  
+```
+Now select only those with opendata, to fill the Table 2
+
+```{r}
+df %>% 
+  filter(true_open_data == "Yes") %>% 
+  group_by(journalTitle) %>% 
+  count() %>% 
+  arrange(desc(n))
+```
+```{r}
+df %>% 
+  filter(journalTitle == "J Clin Periodontol") %>% 
+  select(journalTitle, true_open_data) %>% 
   gtsummary::tbl_summary(by = true_open_data, 
                          sort = all_categorical() ~ "frequency")
 ```
 
 
 
+Check the journals without open data
+
+```{r}
+df %>% 
+  tabyl(true_open_data, isOpenAccess)
+```
+
+
+
+
 # FAIRness
 
+## Overall FAIRness
 ```{r}
 summary(df$FAIRness)
 ```
 ```{r}
 df %>% 
-  tabyl(FAIRness, isOpenAccess) %>% 
-  adorn_totals(where = "col")
-  group_by(FAIRness, isOpenAccess) %>% 
-  count() %>% 
-  # summarise(n = n(), mean = mean(FAIRness)) %>% 
-  pivot_wider(names_from = isOpenAccess, 
-              values_from = n)
-  
-  
+  filter(true_open_data == "Yes") %>% 
+  summarise(n = n(), mean = mean(FAIRness), sd = sd(FAIRness))
 ```
+## Overall FAIRness by domain
+```{r}
+df %>% 
+  filter(true_open_data == "Yes") %>% 
+  pivot_longer(Findability:Reusability, 
+               names_to = "FAIR_item", 
+               values_to = "FAIR_values") %>%
+  mutate(FAIR_item = fct_relevel(FAIR_item, "Findable", "Accesibility", "Interoperability", "Reusability")) %>% 
+  group_by(FAIR_item) %>% 
+  summarise(n = n(), mean = mean(FAIR_values), sd = sd(FAIR_values))
+```
+
 
 
 ```{r}
 df %>% 
   filter(true_open_data == "Yes") %>% 
   ggplot(aes(x = FAIRness)) +
-  geom_histogram(bins = 10)
+  xlim(0, 100) +
+  ylim(0, 25) +
+  geom_histogram(bins = 10, color = "Grey 70", fill = "Grey 50")
 ```
-## FIG 1 FAIRness by journal
+
+## Table 3 FAIRness by journal
+
+```{r}
+df %>% 
+  filter(true_open_data == "Yes") %>% 
+  mutate(journalTitle = fct_lump_min(journalTitle, min = 3)) %>% 
+  group_by(journalTitle) %>% 
+  summarise(n = n(), FAIRmean = mean(FAIRness), sd = sd(FAIRness), min = min(FAIRness), max = max(FAIRness)) %>% 
+  arrange(desc(FAIRmean))
+```
+
+
+### Table FAIRness by year
+
+```{r}
+df %>% 
+  filter(true_open_data == "Yes") %>% 
+  mutate(journalTitle = fct_lump_min(journalTitle, min = 3)) %>% 
+  group_by(pubYear) %>% 
+  summarise(n = n(), FAIRmean = mean(FAIRness), sd = sd(FAIRness), min = min(FAIRness), max = max(FAIRness)) %>% 
+  arrange(pubYear)
+```
+
+
+
+
+## FIG FAIRness by journal
 
 ```{r}
 df %>% 
@@ -450,36 +501,70 @@ Are differences by journal or year?
 ```{r}
 df %>% 
   filter(true_open_data == "Yes") %>% 
-  mutate(Journal = fct_lump(journalTitle, n = 3)) %>% 
+  mutate(Journal = fct_lump_min(journalTitle, min = 3)) %>% 
   with(glm(FAIRness ~ Journal + pubYear)) %>% 
-  gtsummary::tbl_regression(exponentiate = T  )
+  gtsummary::tbl_regression(exponentiate = T ) %>% 
+  sort_p()
 ```
 
 
-## Figure 2 FAIRness by year
+## FIG 1 FAIRness by year
  
 ```{r}
 df %>%
   mutate(id = "a") %>%
+  
   filter(true_open_data == "Yes") %>%
+  mutate(journalTitle = fct_lump_min(journalTitle, min = 4)) %>% 
   ggplot(aes(
     x = as.factor(pubYear),
     y = FAIRness,
+    # color = journalTitle,
     group = id
   )) +
   
   
-  geom_point(position = position_jitter(width = .2), alpha = .3) +
-  stat_summary(fun.y = mean, na.rm = TRUE,
-               geom = "point", color = "dodgerblue", 
-               size = 4, shape = "diamond") +
-  stat_summary(fun.data = mean_cl_normal, na.rm =TRUE, 
-               geom = "errorbar", width = .2, color = "dodgerblue") +
-  stat_summary(fun.y = mean, na.rm = TRUE, aes(group = 1),
-               geom = "line", color = "dodgerblue", 
-               size = .75, shape = "diamond") +
-    labs(title = "FAIRness level of dental research data by year",
-       y = "FAIRness level (%)",
+  geom_point(position = position_jitter(width = .4), alpha = .3) +
+  
+  
+  stat_summary(
+    fun.y = mean,
+    na.rm = TRUE,
+    geom = "point",
+    color = "dodgerblue",
+    size = 4,
+    shape = "diamond"
+  ) +
+  
+  # 95 CI
+  
+  stat_summary(
+    geom = "pointrange",
+    fun.data = mean_cl_normal,
+    fun.args = list(conf.int = .95), 
+    color = "dodgerblue"
+  ) +
+  
+  
+  # stat_summary(fun.data = mean_cl_normal, na.rm =TRUE,
+  #             geom = "errorbar", width = .2, color = "red") +
+  
+  # Average
+  stat_summary(
+    fun.y = mean,
+    na.rm = TRUE,
+    aes(group = 1),
+    geom = "line",
+    color = "dodgerblue",
+    size = .75,
+    shape = "diamond"
+  ) +
+  
+  
+  labs(title = "FAIRness (%) of dental research data by year",
+       subtitle = "Mean and 95% confidence interval. Each point represents one article", 
+       y = "FAIRness Compliance (%)",
+       color = "Journal", 
        x = "Year") +
   ylim(0, 100)
   
@@ -507,7 +592,6 @@ df %>%
     y = n
   )) +
   geom_jitter(alpha = 0.8) +
-  geom_line() +
   scale_shape_manual(values = 0:8) +
   scale_y_log10()
   pivot_wider(names_from = pubYear, values_from = n )
@@ -551,6 +635,97 @@ df %>%
        x = "Domain", 
        y = "FAIR value")
   
+```
+## Analysis by FAIR metrics in detail
+
+## FIG 2 
+```{r}
+df %>%
+  filter(true_open_data == "Yes") %>%
+  mutate(journalTitle = fct_lump_min(journalTitle, min = 3)) %>%
+  select(journalTitle,
+         pubYear,
+         Findability_level:Reusability_level) %>%
+  pivot_longer(Findability_level:Reusability_level,
+               names_to = "item",
+               values_to = "value") %>%
+  mutate(value = fct_relevel(value, "incomplete", "initial",
+                             "moderate", "advanced")) %>%
+  mutate(
+    item = fct_relevel(
+      item,
+      "Findability_level", "Accesibility_level",
+      "Interoperability_level", "Reusability_level"
+    )) %>% 
+  mutate(item = fct_recode(item, 
+                           "Findability" = "Findability_level", 
+                           "Accesibility" = "Accesibility_level", 
+                           "Interoperability" = "Interoperability_level", 
+                           "Reusability" = "Reusability_level")) %>% 
+  
+  
+  # table for check
+  # select(item, value) %>%
+  # gtsummary::tbl_summary(by = item)
+  
+  
+  group_by(item, value)  %>%
+  count() %>%
+  ggplot(aes(x = item,
+             y = n,
+             fill = forcats::fct_rev(value))) +
+  # geom_col() +
+  geom_bar(position = "fill", stat = "identity") +
+  # geom_col(position = position_stack(reverse = TRUE)) +
+  scale_x_discrete(limits = rev) +
+  
+
+  # scale_fill_discrete(limits = rev) +
+  scale_fill_manual(values = c( "#51B364", "#8ACE7E", "#FFDA66", "#E03531" )) + 
+  
+   # scale_fill_brewer(palette = "RdYiGn") +
+
+    labs(title = "Summary of FAIR levels by metric", 
+      fill = "FAIR Level",
+       x = "FAIR Metric", 
+       y = "") +
+  coord_flip() + 
+  scale_y_continuous(labels = scales::percent_format()) 
+```
+
+
+## TABLE Numeric
+
+```{r}
+df %>% 
+  filter(true_open_data == "Yes") %>%
+  mutate(journalTitle = fct_lump_min(journalTitle, min = 3)) %>%
+  select(journalTitle, 
+         pubYear, 
+         FsF_F1_01D:FsF_R1.3_02D) %>% 
+  pivot_longer(FsF_F1_01D:FsF_R1.3_02D, 
+               names_to = "item", 
+               values_to = "value") %>% 
+  ggplot(aes(x = value)) +
+  geom_histogram(bins = 5) +
+  facet_grid(item ~ . ) 
+```
+
+
+```{r}
+df %>% 
+  filter(true_open_data == "Yes") %>%
+  mutate(journalTitle = fct_lump_min(journalTitle, min = 3)) %>%
+  select(journalTitle, 
+         pubYear, 
+         FsF_F1_01D:FsF_R1.3_02D) %>% 
+  pivot_longer(FsF_F1_01D:FsF_R1.3_02D, 
+               names_to = "item", 
+               values_to = "value") %>% 
+  group_by(item) %>% 
+  summarise(n = n(), 
+            mean = mean(value), 
+            sd = sd(value))
 ```
 
 
