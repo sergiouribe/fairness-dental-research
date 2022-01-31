@@ -342,6 +342,22 @@ df %>%
 ```
 Check with https://www.medcalc.org/calc/diagnostic_test.php
 
+## any trend about open data by year?
+
+```{r}
+df %>% 
+  filter(pubYear < 2022) %>% 
+  select(pubYear, true_open_data) %>% 
+  group_by(pubYear, true_open_data) %>% 
+  count() %>% 
+  ggplot(aes(x = pubYear, 
+             y = n, 
+             color = true_open_data, 
+             group = true_open_data)) +
+  geom_line() 
+```
+
+
 ## Hoy many journals?
 
 ```{r}
@@ -1044,7 +1060,7 @@ df %>%
 
 mutate(value = fct_collapse(value, 
                             adv_mod = c("Advanced", "Moderate"), 
-                            other_level = "Init_inc")) %>% 
+                            low_inc = "Init_inc")) %>% 
 
 
 
@@ -1079,8 +1095,7 @@ select(item, value) %>%
   count()  %>% 
   mutate(n = n/112*100) %>% 
   pivot_wider(names_from = value, 
-              values_from = n) %>% 
-  arrange(-desc(adv_mod))
+              values_from = n) 
   
 
 ```
