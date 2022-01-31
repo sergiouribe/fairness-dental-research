@@ -38,6 +38,7 @@ pacman::p_load(tidyverse, # for data wrangling and visualizations
                janitor,   # for data cleaning and tables
                here,      # for files handling
                gtsummary, # for tables
+               patchwork,   # for ggplot figures
                ggeasy,    # using attr labels in ggplot
                visdat,    # for the NAs
                DataExplorer, # for EDA
@@ -362,9 +363,9 @@ df %>%
   
 ```
 
-## Tables
 
-### Table 1
+
+## TABLE 1
 
 ```{r}
 df %>% 
@@ -380,10 +381,11 @@ df %>%
 
 
 
-### Table 2
+## TABLE 2
 
 ```{r}
 df %>%
+  filter(!is.na(is_open_data)) %>%
   mutate(journalTitle = fct_lump_prop(journalTitle, p = 0.008)) %>% 
   select(journalTitle, pubYear, true_open_data) %>% 
   gtsummary::tbl_summary(by = true_open_data, 
@@ -479,7 +481,7 @@ df %>%
 
 
 
-## FIG FAIRness by journal
+## SUPP FIG FAIRness by journal
 
 ```{r}
 df %>% 
@@ -508,7 +510,7 @@ df %>%
 ```
 
 
-## FIG 1 FAIRness by year
+## SUPP FIG FAIRness by year
  
 ```{r}
 df %>%
@@ -638,7 +640,45 @@ df %>%
 ```
 ## Analysis by FAIR metrics in detail
 
-## FIG 2 
+## FIG 1 
+
+```{r}
+df %>%
+  filter(true_open_data == "Yes") %>%
+  mutate(journalTitle = fct_lump_min(journalTitle, min = 3)) %>%
+  select(journalTitle,
+         pubYear,
+         Findability_level:Reusability_level) %>%
+  pivot_longer(Findability_level:Reusability_level,
+               names_to = "item",
+               values_to = "value") %>%
+  mutate(value = fct_relevel(value, "incomplete", "initial",
+                             "moderate", "advanced")) %>%
+  mutate(
+    item = fct_relevel(
+      item,
+      "Findability_level", "Accesibility_level",
+      "Interoperability_level", "Reusability_level"
+    )) %>% 
+  mutate(item = fct_recode(item, 
+                           "Findability" = "Findability_level", 
+                           "Accesibility" = "Accesibility_level", 
+                           "Interoperability" = "Interoperability_level", 
+                           "Reusability" = "Reusability_level")) %>% 
+  
+  
+  # table for check
+  # select(item, value) %>%
+  # gtsummary::tbl_summary(by = item)
+  
+  
+  group_by(item, value)  %>%
+  count() %>% 
+  pivot_wider(names_from = value, 
+              values_from = n)
+```
+
+
 ```{r}
 df %>%
   filter(true_open_data == "Yes") %>%
@@ -690,30 +730,368 @@ df %>%
        x = "FAIR Metric", 
        y = "") +
   coord_flip() + 
+  scale_y_continuous(labels = scales::percent_format())  
+```
+
+Save the plot 
+```{r}
+ggsave(path = here("Figs"), 
+       filename = "Fig1_fair_levels_by_metric.pdf",
+       width = 5, height = 5, device='pdf', dpi=600)
+```
+
+
+### which dataset is more FAIR? Some examples
+
+```{r}
+df %>% 
+  select(doi_publication, title, journalTitle, pubYear, FAIRness, FAIR_level) %>% 
+  arrange(desc(FAIRness)) %>% 
+  head()
+```
+```{r}
+df %>% 
+  filter(!is.na(FAIRness)) %>% 
+  select(doi_publication, title, journalTitle, pubYear, FAIRness, FAIR_level) %>% 
+  arrange(desc(FAIRness)) %>% 
+  tail()
+```
+
+
+## FIG 2 Journal and Year
+
+### FAIR Items per journal
+
+Note that these are the LEVEL values, not the SCORES
+
+Convert the scores to their ordinal meanings
+
+```{r}
+p2 <- df %>%
+  filter(true_open_data == "Yes") %>%
+  mutate(journalTitle = fct_lump_min(journalTitle, min = 3)) %>% 
+  pivot_longer(FsF_F1_01D:FsF_R1.3_02D,
+               names_to = "item",
+               values_to = "value") %>%
+  mutate(item = fct_inorder(item)) %>%
+  mutate(value = as.character(value)) %>% 
+  mutate(value = fct_recode(value,
+      "Incomplete" = "0",
+      "Initial"    = "1" ,
+      "Moderate"   = "2",
+      "Advanced"   = "3"
+    )
+  ) %>% 
+  mutate(value = fct_relevel(value, 
+                             "Incomplete", 
+                             "Initial", 
+                             "Moderate", 
+                             "Advanced")) %>% 
+  select(journalTitle, pubYear, item, value) %>% 
+  group_by(journalTitle, item, value) %>% 
+  count() %>% 
+  ggplot(aes(x = journalTitle, 
+             y = n, 
+             fill = forcats::fct_rev(value))) +
+  # geom_col() +
+  geom_bar(position = "fill", stat = "identity") +
+  # geom_col(position = position_stack(reverse = TRUE)) +
+  scale_x_discrete(limits = rev) +
+  
+
+  # scale_fill_discrete(limits = rev) +
+   scale_fill_manual(values = c( "#51B364", "#8ACE7E", "#FFDA66", "#E03531" )) + 
+  
+   # scale_fill_brewer(palette = "RdYiGn") +
+
+    labs(title = "Summary of FAIR levels by Journal", 
+      fill = "FAIR Level",
+       x = "", 
+       y = "") +
+  coord_flip() + 
+  # facet_grid(. ~ item ) +
+  
+  scale_y_continuous(labels = scales::percent_format())  
+```
+### FAIR Items per year
+
+```{r}
+p1 <- df %>%
+  filter(true_open_data == "Yes") %>%
+  mutate(journalTitle = fct_lump_min(journalTitle, min = 3)) %>% 
+  pivot_longer(FsF_F1_01D:FsF_R1.3_02D,
+               names_to = "item",
+               values_to = "value") %>%
+  mutate(item = fct_inorder(item)) %>%
+  mutate(value = as.character(value)) %>% 
+  mutate(value = fct_recode(value,
+      "Incomplete" = "0",
+      "Initial"    = "1" ,
+      "Moderate"   = "2",
+      "Advanced"   = "3"
+    )
+  ) %>% 
+  mutate(value = fct_relevel(value, 
+                             "Incomplete", 
+                             "Initial", 
+                             "Moderate", 
+                             "Advanced")) %>% 
+  select(journalTitle, pubYear, item, value) %>% 
+  group_by(pubYear, item, value) %>% 
+  count() %>% 
+  ggplot(aes(x = as.factor(pubYear), 
+             y = n, 
+             fill = forcats::fct_rev(value))) +
+  # geom_col() +
+  geom_bar(position = "fill", stat = "identity") +
+  # geom_col(position = position_stack(reverse = TRUE)) +
+  scale_x_discrete(limits = rev) +
+  
+
+  # scale_fill_discrete(limits = rev) +
+   scale_fill_manual(values = c( "#51B364", "#8ACE7E", "#FFDA66", "#E03531" )) + 
+  
+   # scale_fill_brewer(palette = "RdYiGn") +
+
+    labs(title = "Summary of FAIR levels by Year", 
+      fill = "FAIR Level",
+       x = "Year", 
+       y = "") +
+  # coord_flip() + 
+  # facet_grid(. ~ item ) +
+  theme(legend.position = "none") +
   scale_y_continuous(labels = scales::percent_format()) 
 ```
 
 
-## TABLE Numeric
 
 ```{r}
-df %>% 
+p1 + p2 + plot_annotation(tag_levels = 'A')
+```
+### ggasve fig 2 
+
+```{r}
+ggsave(path = here("Figs"), 
+       filename = "Fig2_year_journal.pdf",
+       width = 9, height = 4, device='pdf', dpi=600)
+```
+
+```{r}
+df %>%
   filter(true_open_data == "Yes") %>%
-  mutate(journalTitle = fct_lump_min(journalTitle, min = 3)) %>%
-  select(journalTitle, 
-         pubYear, 
-         FsF_F1_01D:FsF_R1.3_02D) %>% 
-  pivot_longer(FsF_F1_01D:FsF_R1.3_02D, 
-               names_to = "item", 
-               values_to = "value") %>% 
-  ggplot(aes(x = value)) +
-  geom_histogram(bins = 5) +
-  facet_grid(item ~ . ) 
+  mutate(journalTitle = fct_lump_min(journalTitle, min = 3)) %>% 
+  pivot_longer(FsF_F1_01D:FsF_R1.3_02D,
+               names_to = "item",
+               values_to = "value") %>%
+  mutate(item = fct_inorder(item)) %>%
+  mutate(value = as.character(value)) %>% 
+  mutate(value = fct_recode(value,
+      "Incomplete" = "0",
+      "Initial"    = "1" ,
+      "Moderate"   = "2",
+      "Advanced"   = "3"
+    )
+  ) %>% 
+  mutate(value = fct_relevel(value, 
+                             "Incomplete", 
+                             "Initial", 
+                             "Moderate", 
+                             "Advanced")) %>% 
+  select(journalTitle, pubYear, item, value) %>% 
+  group_by(pubYear, item, value) %>% 
+  count() %>% 
+  ggplot(aes(x = as.factor(pubYear), 
+             y = n, 
+             fill = forcats::fct_rev(value))) +
+  # geom_col() +
+  geom_bar(position = "fill", stat = "identity") +
+  # geom_col(position = position_stack(reverse = TRUE)) +
+  scale_x_discrete(limits = rev) +
+  
+
+  # scale_fill_discrete(limits = rev) +
+   scale_fill_manual(values = c( "#51B364", "#8ACE7E", "#FFDA66", "#E03531" )) + 
+  
+   # scale_fill_brewer(palette = "RdYiGn") +
+
+    labs(title = "Summary of FAIR levels by Year", 
+      fill = "FAIR Level",
+       x = "Year", 
+       y = "") +
+  # coord_flip() + 
+  # facet_grid(. ~ item ) +
+  scale_y_continuous(labels = scales::percent_format())
 ```
 
 
+## FIG 3 FAIR Maturity details
+
+```{r}
+df %>%
+  # reoirder and relabel the data
+  filter(true_open_data == "Yes") %>%
+  mutate(journalTitle = fct_lump_min(journalTitle, min = 3)) %>%
+  pivot_longer(FsF_F1_01D:FsF_R1.3_02D,
+               names_to = "item",
+               values_to = "value") %>%
+  mutate(item = fct_inorder(item)) %>%
+  mutate(value = as.character(value)) %>%
+  mutate(value = fct_recode(
+    value,
+    "Incomplete" = "0",
+    "Initial"    = "1" ,
+    "Moderate"   = "2",
+    "Advanced"   = "3"
+  )) %>%
+  mutate(value = fct_relevel(value,
+                             "Incomplete",
+                             "Initial",
+                             "Moderate",
+                             "Advanced"))  %>%
+  #########################
+# relevel
+mutate(
+  item = fct_recode(
+    item,
+    "F1-01D - Data is assigned a globally unique identifier" = "FsF_F1_01D"	,
+    "F1-02D - Data is assigned a persistent identifier" = "FsF_F1_02D"	,
+    "F2-01M - Metadata includes descriptive core elements to support data findability" = "FsF_F2_01M"	,
+    "F3-01M - Metadata includes the identifier of the data it describes" = "FsF_F3_01M"	,
+    "F4-01M - Metadata is offered in such a way that it can be retrieved by machines" = "FsF_F4_01M"	,
+    "A1-01M - Metadata contains access level and access conditions of the data" = "FsF_A1_01M"	,
+    "A1-02M - Metadata is accessible through a standardized communication protocol" = "FsF_A1_03D"	,
+    "A1-03D - Data is accessible through a standardized communication protocol" = "FsF_A1_02M"	,
+    "I1-01M - Metadata is represented using a formal knowledge representation language" = "FsF_I1_01M"	,
+    "I1-02M - Metadata uses semantic resources" = "FsF_I1_02M"	,
+    "I3-01M - Metadata includes links between the data and its related entities" = "FsF_I3_01M"	,
+    "R1-01MD - Metadata specifies the content of the data" = "FsF_R1_01MD"	,
+    "R1.1-01M - Metadata includes license information under which data can be reused" = "FsF_R1.1_01M"	,
+    "R1.2-01M - Metadata includes provenance information about data creation or generation" = "FsF_R1.2_01M"	,
+    "R1.3-01M - Metadata follows a standard recommended by the target research community of the data" = "FsF_R1.3_01M"	,
+    "R1.3-02D - Data is available in a file format recommended by the target research community" = "FsF_R1.3_02D"
+  )
+) %>%
+  
+  
+  
+  #########################
+select(item, value) %>%
+  group_by(item, value) %>%
+  count() %>%
+  
+  
+  
+  ## The plot
+  
+  ggplot(aes(
+    x = item,
+    y = n,
+    fill = forcats::fct_rev(value)
+  )) +
+  # geom_col() +
+  geom_bar(position = "fill", stat = "identity") +
+  # geom_col(position = position_stack(reverse = TRUE)) +
+  scale_x_discrete(limits = rev) +
+  
+  
+  # scale_fill_discrete(limits = rev) +
+  scale_fill_manual(values = c("#51B364", "#8ACE7E", "#FFDA66", "#E03531")) +
+  
+  # scale_fill_brewer(palette = "RdYiGn") +
+  
+  labs(title = "Summary of FAIR levels by Year",
+       fill = "FAIR Level",
+       x = "FAIR Maturity Indicator",
+       y = "") +
+  # coord_flip() +
+  # facet_grid(. ~ item ) +
+  coord_flip() +
+  scale_y_continuous(labels = scales::percent_format())
+ 
+```
+### ggsave fig 3
+
+```{r}
+ggsave(path = here("Figs"), 
+       filename = "Fig3_fair_maturity.pdf",
+       width = 10, height = 5, device='pdf', dpi=300)
+```
+
+```{r}
+df %>%
+  # reoirder and relabel the data
+  filter(true_open_data == "Yes") %>%
+  mutate(journalTitle = fct_lump_min(journalTitle, min = 3)) %>%
+  pivot_longer(FsF_F1_01D:FsF_R1.3_02D,
+               names_to = "item",
+               values_to = "value") %>%
+  mutate(item = fct_inorder(item)) %>%
+  mutate(value = as.character(value)) %>%
+  mutate(value = fct_recode(
+    value,
+    "Incomplete" = "0",
+    "Initial"    = "1" ,
+    "Moderate"   = "2",
+    "Advanced"   = "3"
+  )) %>%
+  mutate(value = fct_relevel(value,
+                             "Incomplete",
+                             "Initial",
+                             "Moderate",
+                             "Advanced"))  %>%
+  #########################
+## recode for the table
+
+mutate(value = fct_collapse(value, 
+                            adv_mod = c("Advanced", "Moderate"), 
+                            other_level = "Init_inc")) %>% 
+
+
+
+# relevel
+mutate(
+  item = fct_recode(
+    item,
+    "F1-01D - Data is assigned a globally unique identifier" = "FsF_F1_01D"	,
+    "F1-02D - Data is assigned a persistent identifier" = "FsF_F1_02D"	,
+    "F2-01M - Metadata includes descriptive core elements to support data findability" = "FsF_F2_01M"	,
+    "F3-01M - Metadata includes the identifier of the data it describes" = "FsF_F3_01M"	,
+    "F4-01M - Metadata is offered in such a way that it can be retrieved by machines" = "FsF_F4_01M"	,
+    "A1-01M - Metadata contains access level and access conditions of the data" = "FsF_A1_01M"	,
+    "A1-02M - Metadata is accessible through a standardized communication protocol" = "FsF_A1_03D"	,
+    "A1-03D - Data is accessible through a standardized communication protocol" = "FsF_A1_02M"	,
+    "I1-01M - Metadata is represented using a formal knowledge representation language" = "FsF_I1_01M"	,
+    "I1-02M - Metadata uses semantic resources" = "FsF_I1_02M"	,
+    "I3-01M - Metadata includes links between the data and its related entities" = "FsF_I3_01M"	,
+    "R1-01MD - Metadata specifies the content of the data" = "FsF_R1_01MD"	,
+    "R1.1-01M - Metadata includes license information under which data can be reused" = "FsF_R1.1_01M"	,
+    "R1.2-01M - Metadata includes provenance information about data creation or generation" = "FsF_R1.2_01M"	,
+    "R1.3-01M - Metadata follows a standard recommended by the target research community of the data" = "FsF_R1.3_01M"	,
+    "R1.3-02D - Data is available in a file format recommended by the target research community" = "FsF_R1.3_02D"
+  )
+) %>%
+  
+  
+  
+  #########################
+select(item, value) %>%
+  group_by(item, value) %>%
+  count()  %>% 
+  mutate(n = n/112*100) %>% 
+  pivot_wider(names_from = value, 
+              values_from = n) %>% 
+  arrange(-desc(adv_mod))
+  
+
+```
+
+
+
+### levels by journal
+
 ```{r}
 df %>% 
+  filter(!is.na(is_open_data)) %>%
   filter(true_open_data == "Yes") %>%
   mutate(journalTitle = fct_lump_min(journalTitle, min = 3)) %>%
   select(journalTitle, 
@@ -722,10 +1100,29 @@ df %>%
   pivot_longer(FsF_F1_01D:FsF_R1.3_02D, 
                names_to = "item", 
                values_to = "value") %>% 
-  group_by(item) %>% 
-  summarise(n = n(), 
-            mean = mean(value), 
-            sd = sd(value))
+  mutate(item = fct_inorder(item))  %>% 
+  group_by(journalTitle, item) %>% 
+  summarise(mean = mean(value)) %>% 
+  pivot_wider(names_from = item, 
+              values_from = mean)
+  
+```
+```{r}
+df %>% 
+  filter(!is.na(is_open_data)) %>%
+  filter(true_open_data == "Yes") %>%
+  mutate(journalTitle = fct_lump_min(journalTitle, min = 3)) %>%
+  select(journalTitle, 
+         pubYear, 
+         FsF_F1_01D:FsF_R1.3_02D) %>% 
+  pivot_longer(FsF_F1_01D:FsF_R1.3_02D, 
+               names_to = "item", 
+               values_to = "value") %>% 
+  mutate(item = fct_inorder(item))  %>% 
+  group_by(pubYear, item) %>% 
+  summarise(mean = mean(value)) %>% 
+  pivot_wider(names_from = item, 
+              values_from = mean)
 ```
 
 
