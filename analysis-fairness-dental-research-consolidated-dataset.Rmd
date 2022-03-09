@@ -943,7 +943,7 @@ df %>%
 ## FIG 3 FAIR Maturity details
 
 ```{r}
-df %>%
+p3 <- df %>%
   # reoirder and relabel the data
   filter(true_open_data == "Yes") %>%
   mutate(journalTitle = fct_lump_min(journalTitle, min = 3)) %>%
@@ -1015,22 +1015,62 @@ select(item, value) %>%
   
   # scale_fill_brewer(palette = "RdYiGn") +
   
-  labs(title = "Summary of FAIR levels by Year",
-       fill = "FAIR Level",
+  labs(title = "FAIR maturity indicators",
+       # fill = "FAIR Level",
        x = "FAIR Maturity Indicator",
        y = "") +
   # coord_flip() +
   # facet_grid(. ~ item ) +
   coord_flip() +
+  theme(legend.position = "none") +
   scale_y_continuous(labels = scales::percent_format())
  
 ```
+
+```{r}
+p3
+```
+
 ### ggsave fig 3
 
 ```{r}
 ggsave(path = here("Figs"), 
        filename = "Fig3_fair_maturity.pdf",
        width = 10, height = 5, device='pdf', dpi=300)
+```
+
+```{r}
+patch <- p1 | p2
+```
+
+
+```{r}
+patch / p3 + plot_annotation(tag_levels = 'A')
+```
+
+
+
+```{r}
+ggpubr::ggarrange(p1,                                                 # First row with scatter plot
+          ggpubr::ggarrange(p2, p3, ncol = 2, labels = c("B", "C")), # Second row with box and dot plots
+          nrow = 2, 
+          labels = "A"                                        # Labels of the scatter plot
+          ) 
+          
+```
+```{r}
+cowplot::ggdraw() +
+  cowplot::draw_plot(p1, x = 0, y = .5, width = .5, height = .5) +
+  cowplot::draw_plot(p2, x = .5, y = .5, width = .5, height = .5) +
+  cowplot::draw_plot(p3, x = 0, y = 0, width = 1, height = 0.5) +
+  cowplot::draw_plot_label(label = c("A", "B", "C"), size = 15,
+                  x = c(0, 0.5, 0), y = c(1, 1, 0.5))
+```
+
+```{r}
+ggsave(path = here("Figs"), 
+       filename = "Fig_2_A_B_C.pdf",
+       width = 15, height = 7, device='pdf', dpi=600)
 ```
 
 ```{r}
