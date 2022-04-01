@@ -520,8 +520,9 @@ Are differences by journal or year?
 df %>% 
   filter(true_open_data == "Yes") %>% 
   mutate(Journal = fct_lump_min(journalTitle, min = 3)) %>% 
+  mutate(Journal = fct_relevel(Journal, "Prog Orthod")) %>% 
   with(glm(FAIRness ~ Journal + pubYear)) %>% 
-  gtsummary::tbl_regression(exponentiate = T ) %>% 
+  gtsummary::tbl_regression(exponentiate = F ) %>% 
   sort_p()
 ```
 
@@ -609,10 +610,10 @@ df %>%
     group = Journal,
     y = n
   )) +
-  geom_jitter(alpha = 0.8) +
+  geom_jitter(alpha = 0.9) +
   scale_shape_manual(values = 0:8) +
   scale_y_log10()
-  pivot_wider(names_from = pubYear, values_from = n )
+#  pivot_wider(names_from = pubYear, values_from = n )
 ```
 
 ```{r}
@@ -623,7 +624,7 @@ df %>%
   
   group_by(Journal, pubYear) %>% 
   summarise(FAIRness_mean = mean(FAIRness, na.rm = T)) %>% 
-  mutate_if(is.numeric, format, 1) %>% 
+  mutate(FAIRness_mean = round(FAIRness_mean, digits = 1) ) %>% 
   pivot_wider(names_from = pubYear, values_from = FAIRness_mean ) 
   
 ```
@@ -710,14 +711,21 @@ df %>%
   mutate(
     item = fct_relevel(
       item,
-      "Findability_level", "Accesibility_level",
-      "Interoperability_level", "Reusability_level"
-    )) %>% 
-  mutate(item = fct_recode(item, 
-                           "Findability" = "Findability_level", 
-                           "Accesibility" = "Accesibility_level", 
-                           "Interoperability" = "Interoperability_level", 
-                           "Reusability" = "Reusability_level")) %>% 
+      "Findability_level",
+      "Accesibility_level",
+      "Interoperability_level",
+      "Reusability_level"
+    )
+  ) %>%
+  mutate(
+    item = fct_recode(
+      item,
+      "Findability" = "Findability_level",
+      "Accesibility" = "Accesibility_level",
+      "Interoperability" = "Interoperability_level",
+      "Reusability" = "Reusability_level"
+    )
+  ) %>%
   
   
   # table for check
@@ -727,25 +735,27 @@ df %>%
   
   group_by(item, value)  %>%
   count() %>%
-  ggplot(aes(x = item,
-             y = n,
-             fill = forcats::fct_rev(value))) +
+  ggplot(aes(
+    x = item,
+    y = n,
+    fill = forcats::fct_rev(value)
+  )) +
   # geom_col() +
   geom_bar(position = "fill", stat = "identity") +
   # geom_col(position = position_stack(reverse = TRUE)) +
   scale_x_discrete(limits = rev) +
   
-
-  # scale_fill_discrete(limits = rev) +
-  scale_fill_manual(values = c( "#51B364", "#8ACE7E", "#FFDA66", "#E03531" )) + 
   
-   # scale_fill_brewer(palette = "RdYiGn") +
-
-    labs(title = "Summary of FAIR levels by metric", 
-      fill = "FAIR Level",
-       x = "FAIR Metric", 
+  # scale_fill_discrete(limits = rev) +
+  scale_fill_manual(values = c("#51B364", "#8ACE7E", "#FFDA66", "#E03531")) +
+  
+  # scale_fill_brewer(palette = "RdYiGn") +
+  
+  labs(title =  "Figure 1\nSummary of FAIR levels by metric",
+       fill = "FAIR Level",
+       x = "FAIR Metric",
        y = "") +
-  coord_flip() + 
+  coord_flip() +
   scale_y_continuous(labels = scales::percent_format())  
 ```
 
@@ -882,7 +892,7 @@ p1 <- df %>%
 
 
 ```{r}
-p1 + p2 + plot_annotation(tag_levels = 'A')
+p1 + p2 + plot_annotation(tag_levels = 'A') + plot_annotation(title = "Figure 2")
 ```
 ### ggasve fig 2 
 
