@@ -468,7 +468,9 @@ df %>%
   ggplot(aes(x = FAIRness)) +
   xlim(0, 100) +
   ylim(0, 25) +
-  geom_histogram(bins = 10, color = "Grey 70", fill = "Grey 50")
+  geom_histogram(bins = 10, color = "Grey 70", fill = "Grey 50") + 
+  labs(title = "Histogram of FAIRness across dental publications", 
+       y = "n")
 ```
 
 ## Table 3 FAIRness by journal
@@ -612,7 +614,10 @@ df %>%
   )) +
   geom_jitter(alpha = 0.9) +
   scale_shape_manual(values = 0:8) +
-  scale_y_log10()
+  scale_y_log10() + 
+  labs(title = "Publications by year by journal with open data", 
+       y = "n", 
+       x = "Year")
 #  pivot_wider(names_from = pubYear, values_from = n )
 ```
 
@@ -649,12 +654,44 @@ df %>%
   ggplot(aes(x = FAIR_item, 
              y = FAIR_values)) + 
   geom_boxplot(width = .5, color = "dodgerblue") +
-  geom_jitter(alpha = .1, color = "Grey 20") +
+  geom_jitter(alpha = .1, color = "Grey 20", width = 0.2) +
   labs(title = "FAIR level by domain", 
        x = "Domain", 
        y = "FAIR value")
   
 ```
+```{r}
+df %>% 
+  filter(true_open_data == "Yes") %>% 
+  filter(!is.na(FAIRness)) %>% 
+  mutate(Journal = fct_lump(journalTitle, n = 6)) %>%
+  select(Journal, pubYear, Findability:Reusability ) %>% 
+  
+  pivot_longer(Findability:Reusability, 
+               names_to = "FAIR_item", 
+               values_to = "FAIR_values") %>% 
+
+  mutate(FAIR_item = case_when(
+    FAIR_item == "Findability" ~ "F", 
+    FAIR_item == "Accesibility" ~ "A", 
+    FAIR_item == "Interoperability" ~ "I", 
+    TRUE ~ "R"
+  )) %>% 
+    mutate(FAIR_item = fct_relevel(FAIR_item, "F", 
+                                 "A", 
+                                 "I",
+                                 "R")) %>% 
+  ggplot(aes(x = FAIR_item, 
+             y = FAIR_values)) + 
+  geom_boxplot(width = .5, color = "dodgerblue") +
+  geom_jitter(alpha = .1, color = "Grey 20", width = 0.2) +
+  labs(title = "FAIR level by domain and Journal", 
+       x = "Domain", 
+       y = "FAIR value") + 
+  facet_grid(. ~ Journal)
+```
+
+
 ## Analysis by FAIR metrics in detail
 
 ## FIG 1 
@@ -1083,6 +1120,16 @@ ggsave(path = here("Figs"),
        width = 15, height = 7, device='pdf', dpi=600)
 ```
 
+Remove graphs
+
+```{r}
+rm(p1, p2, p3, patch)
+```
+
+
+## Tables to check
+
+
 ```{r}
 df %>%
   # reoirder and relabel the data
@@ -1262,14 +1309,14 @@ glm(citedByCount ~  pubYear +  true_open_data + isOpenAccess + true_open_data * 
 
 (run only once at the end of the analysis)
 ```{r}
-# open_data_all %>% 
-#  dataMaid::makeCodebook()
+# df %>% 
+#  dataMaid::makeCodebook(file = "codebook.html")
 
 
 ```
 
 ```{r}
-# sessionInfo() 
+ sessionInfo() 
 ```
 
 
